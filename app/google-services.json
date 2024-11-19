@@ -1,0 +1,30 @@
+{
+  "project_info": {
+    "project_number": "1006847813663",
+    "project_id": "rideshare-16536",
+    "storage_bucket": "rideshare-16536.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1006847813663:android:11426d66c057ce24f88d2a",
+        "android_client_info": {
+          "package_name": "com.eternal"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC9wkjKI8qf1TC9gkAuYPercLxTeeJI6NU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
+
