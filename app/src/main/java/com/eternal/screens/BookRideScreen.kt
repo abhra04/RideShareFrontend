@@ -20,6 +20,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccessTime
 import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.ArrowDropUp
 import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material3.*
@@ -30,6 +31,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
@@ -40,6 +42,7 @@ import com.google.android.gms.location.LocationCallback
 import com.google.android.gms.location.LocationRequest
 import com.google.android.gms.location.LocationResult
 import com.google.android.gms.location.LocationServices
+import com.google.android.gms.maps.model.BitmapDescriptorFactory
 import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.LatLng
 import com.google.android.libraries.places.api.model.AutocompletePrediction
@@ -51,13 +54,17 @@ import com.google.maps.android.compose.GoogleMap
 import com.google.maps.android.compose.Marker
 import com.google.maps.android.compose.rememberCameraPositionState
 import com.google.maps.android.compose.rememberMarkerState
+import com.squareup.moshi.JsonClass
+import com.squareup.moshi.Moshi
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONObject
 import java.io.IOException
 import java.util.*
+
 
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -76,6 +83,10 @@ fun BookRideScreen(
     var numberOfPassengers by remember { mutableStateOf("1") }
     var openToSharing by remember { mutableStateOf(false) }
     var okToSplitGroup by remember { mutableStateOf(false) }
+    var exactDropoffLocation by  remember { mutableStateOf("") }
+    var exactPickupLocationBox by  remember { mutableStateOf("") }
+    var pickupSuggestions by remember { mutableStateOf(emptyList<String>()) }
+    var dropOffSuggestions by remember { mutableStateOf(emptyList<String>()) }
 
     val currentUser = FirebaseAuth.getInstance().currentUser
     val context = LocalContext.current
@@ -85,6 +96,8 @@ fun BookRideScreen(
     var dropOffLocation by remember { mutableStateOf("") }
     var pickupDropdownExpanded by remember { mutableStateOf(false) }
     var dropOffDropdownExpanded by remember { mutableStateOf(false) }
+    val fusedLocationClient = LocationServices.getFusedLocationProviderClient(context)
+    var userLocation by remember { mutableStateOf(LatLng(0.0, 0.0)) }
 
     val pickupOptions = listOf("KGP", "CCU")
     val dropOffOptions = when (pickupLocation) {
@@ -93,8 +106,49 @@ fun BookRideScreen(
         else -> emptyList()
     }
 
+
+    // Function to fetch location suggestions (must be called in a Composable context)
+//    val fetchLocationSuggestions = @androidx.compose.runtime.Composable { query: String ->
+//        // This should be a suspend function
+//        LaunchedEffect(query) {
+//            if (query.isBlank()) {
+//                pickupSuggestions = emptyList()
+//                dropOffSuggestions = emptyList()
+//            } else {
+//                // Make sure to launch a coroutine to handle the fetch operation
+//                val suggestions = fetchSuggestions(query)
+//                pickupSuggestions = suggestions
+//                dropOffSuggestions = suggestions
+//            }
+//        }
+//    }
+
+
+
     LaunchedEffect(currentUser) {
         contactNumber = currentUser?.phoneNumber ?: ""
+        if (ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.ACCESS_FINE_LOCATION
+            ) == PackageManager.PERMISSION_GRANTED
+        ) {
+            // Request current location
+            fusedLocationClient.getCurrentLocation(
+                com.google.android.gms.location.Priority.PRIORITY_HIGH_ACCURACY,
+                null
+            ).addOnSuccessListener { location ->
+                if (location != null) {
+                    // Update the map to the current location
+                    exactPickupLocation = LatLng(location.latitude, location.longitude)
+                } else {
+                    Toast.makeText(context, "Unable to fetch current location.", Toast.LENGTH_SHORT).show()
+                }
+            }.addOnFailureListener {
+                Toast.makeText(context, "Failed to get location: ${it.message}", Toast.LENGTH_SHORT).show()
+            }
+        } else {
+            Toast.makeText(context, "Location permission not granted.", Toast.LENGTH_LONG).show()
+        }
     }
 
     Scaffold(
@@ -105,7 +159,7 @@ fun BookRideScreen(
             )
         }
     ){
-        padding -> Box(
+        innerPadding -> Box(
         modifier = Modifier
             .fillMaxSize()
             .onGloballyPositioned { layoutCoordinates ->
@@ -121,13 +175,20 @@ fun BookRideScreen(
             GoogleMap(
                 modifier = Modifier.fillMaxSize(),
                 cameraPositionState = rememberCameraPositionState {
-                    position = CameraPosition.fromLatLngZoom(exactPickupLocation, 14f)
+                    position = CameraPosition.fromLatLngZoom(userLocation.takeIf { it.latitude != 0.0 } ?: exactPickupLocation, 14f)
                 }
             ) {
                 Marker(
                     state = rememberMarkerState(position = exactPickupLocation),
                     title = "Exact Pickup Location"
                 )
+                if (userLocation.latitude != 0.0) {
+                    Marker(
+                        state = rememberMarkerState(position = userLocation),
+                        title = "Your Location",
+                        icon = BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_AZURE)
+                    )
+                }
             }
         }
 
@@ -200,6 +261,41 @@ fun BookRideScreen(
                 }
             }
 
+            // Exact Pickup Location Autocomplete
+            Spacer(modifier = Modifier.height(16.dp))
+
+            LaunchedEffect(exactDropoffLocation) {
+                if (exactDropoffLocation.isNotBlank()) {
+                    dropOffSuggestions = fetchSuggestions(exactDropoffLocation) // Call the suspend function
+                } else {
+                    dropOffSuggestions = emptyList()
+                }
+            }
+
+            LaunchedEffect(exactPickupLocationBox) {
+                if (exactPickupLocationBox.isNotBlank()) {
+                    pickupSuggestions = fetchSuggestions(exactPickupLocationBox) // Call the suspend function
+                } else {
+                    pickupSuggestions = emptyList()
+                }
+            }
+
+
+            PickupLocationField(
+                exactPickupLocationBox = exactPickupLocationBox,
+                onPickupLocationChange = { query ->
+                    exactPickupLocationBox = query
+                    // Update suggestions dynamically based on the query
+                    pickupSuggestions = if (query.isBlank()) emptyList() else emptyList()
+                },
+                pickupSuggestions = pickupSuggestions,
+                onSuggestionClick = { suggestion ->
+                    exactPickupLocationBox = suggestion
+                }
+            )
+
+
+
             Spacer(modifier = Modifier.height(16.dp))
 
             // Drop-Off Location Dropdown
@@ -233,6 +329,23 @@ fun BookRideScreen(
                     }
                 }
             }
+
+            // Exact Drop-Off Location Autocomplete
+            Spacer(modifier = Modifier.height(16.dp))
+
+            DropOffLocationField(
+                exactDropoffLocation = exactDropoffLocation,
+                onDropOffLocationChange = { query ->
+                    exactDropoffLocation = query
+                    // Update suggestions dynamically based on the query
+                    dropOffSuggestions = if (query.isBlank()) emptyList() else emptyList()
+                },
+                dropOffSuggestions = dropOffSuggestions,
+                onSuggestionClick = { suggestion ->
+                    exactDropoffLocation = suggestion
+                }
+            )
+
 
             Spacer(modifier = Modifier.height(16.dp))
 
@@ -276,27 +389,33 @@ fun BookRideScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            Button(
-                onClick = {
-                    onRideRequestSubmit(
-                        RideRequest(
-                            customerName = currentUser?.uid ?: "Unknown",
-                            pickupLocation = pickupLocation,
-                            dropoffLocation = dropOffLocation,
-                            contactNumber = contactNumber,
-                            pickupDate = pickupDate,
-                            pickupTime = pickupTime,
-                            numberOfPassengers = numberOfPassengers,
-                            openToSharing = openToSharing.toString(),
-                            okToSplitGroup = okToSplitGroup.toString(),
-                            exactPickupLocation = exactPickupLocation.toString()
+            Box(
+                modifier = Modifier
+                    .padding(innerPadding) // Respect bottom navigation bar padding
+                    .padding(16.dp) // Additional padding for spacing
+            ){
+                Button(
+                    onClick = {
+                        onRideRequestSubmit(
+                            RideRequest(
+                                customerName = currentUser?.uid ?: "Unknown",
+                                pickupLocation = pickupLocation,
+                                dropoffLocation = dropOffLocation,
+                                contactNumber = contactNumber,
+                                pickupDate = pickupDate,
+                                pickupTime = pickupTime,
+                                numberOfPassengers = numberOfPassengers,
+                                openToSharing = openToSharing.toString(),
+                                okToSplitGroup = okToSplitGroup.toString(),
+                                exactPickupLocation = exactPickupLocation.toString()
+                            )
                         )
-                    )
-                },
-                modifier = Modifier.fillMaxWidth(),
-                enabled = pickupLocation.isNotEmpty() && dropOffLocation.isNotEmpty()
-            ) {
-                Text("Submit Ride Request")
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = pickupLocation.isNotEmpty() && dropOffLocation.isNotEmpty()
+                ) {
+                    Text("Submit Ride Request")
+                }
             }
         }
     }
@@ -437,3 +556,148 @@ fun BottomNavigationBar(
 }
 
 
+fun parsePredictions(json: String): List<String> {
+    val descriptions = mutableListOf<String>()
+
+    // Regular expression pattern to match the description field
+    val regex = """"description" : "(.*?)"""".toRegex()
+
+    // Find all matches for the description field in the response
+    val matches = regex.findAll(json)
+
+    // Extract descriptions from the matches and add them to the list
+    for (match in matches) {
+        descriptions.add(match.groupValues[1])
+    }
+
+    return descriptions
+}
+
+suspend fun fetchSuggestions(query: String): List<String> {
+    if (query.isBlank()) return emptyList()
+
+    val apiKey = "AIzaSyBcGEnvmXH8Aztnq5Kjx2vfz3XmWwPgfsA"
+    val baseUrl = "https://maps.googleapis.com/maps/api/place/autocomplete/json"
+    val url = "$baseUrl?input=${query}&key=${apiKey}"
+
+    val client = OkHttpClient()
+    val request = Request.Builder().url(url).build()
+
+    return try {
+        // Perform the network request in the background
+        val response = withContext(Dispatchers.IO) { client.newCall(request).execute() }
+        if (response.isSuccessful) {
+            val responseBody = response.body()?.string()!!
+            val predictions = parsePredictions(responseBody) // Implement your parsing logic
+            predictions
+        } else {
+            emptyList()
+        }
+    } catch (e: Exception) {
+        e.printStackTrace()
+        emptyList()
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun PickupLocationField(
+    exactPickupLocationBox: String,
+    onPickupLocationChange: (String) -> Unit,
+    pickupSuggestions: List<String>,
+    onSuggestionClick: (String) -> Unit
+) {
+    var isDropdownExpanded by remember { mutableStateOf(false) }
+
+    // Use ExposedDropdownMenuBox for built-in alignment and dropdown behavior
+    ExposedDropdownMenuBox(
+        expanded = isDropdownExpanded,
+        onExpandedChange = { isDropdownExpanded = !isDropdownExpanded }
+    ) {
+        // Input Text Field
+        OutlinedTextField(
+            value = exactPickupLocationBox,
+            onValueChange = { query ->
+                onPickupLocationChange(query)
+                isDropdownExpanded = query.isNotEmpty()
+            },
+            label = { Text("Exact Pick Up Location") },
+            modifier = Modifier
+                .menuAnchor() // Required for proper alignment with ExposedDropdownMenuBox
+                .fillMaxWidth(),
+            trailingIcon = {
+                ExposedDropdownMenuDefaults.TrailingIcon(expanded = isDropdownExpanded)
+            }
+        )
+
+        // Dropdown Menu
+        ExposedDropdownMenu(
+            expanded = isDropdownExpanded,
+            onDismissRequest = { isDropdownExpanded = false }
+        ) {
+            pickupSuggestions.forEach { suggestion ->
+                DropdownMenuItem(
+                    text = { Text(suggestion) },
+                    onClick = {
+                        onSuggestionClick(suggestion)
+                        isDropdownExpanded = false // Close the dropdown
+                    }
+                )
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun DropOffLocationField(
+    exactDropoffLocation: String,
+    onDropOffLocationChange: (String) -> Unit,
+    dropOffSuggestions: List<String>,
+    onSuggestionClick: (String) -> Unit
+) {
+    var isDropdownExpanded by remember { mutableStateOf(false) }
+
+    // Use ExposedDropdownMenuBox for built-in alignment and dropdown behavior
+    ExposedDropdownMenuBox(
+        expanded = isDropdownExpanded,
+        onExpandedChange = { isDropdownExpanded = !isDropdownExpanded }
+    ) {
+        // Input Text Field
+        OutlinedTextField(
+            value = exactDropoffLocation,
+            onValueChange = { query ->
+                onDropOffLocationChange(query)
+                isDropdownExpanded = query.isNotEmpty()
+            },
+            label = { Text("Exact Drop Off Location") },
+            modifier = Modifier
+                .menuAnchor() // Required for proper alignment with ExposedDropdownMenuBox
+                .fillMaxWidth(),
+            trailingIcon = {
+                ExposedDropdownMenuDefaults.TrailingIcon(expanded = isDropdownExpanded)
+            }
+        )
+
+        // Dropdown Menu
+        ExposedDropdownMenu(
+            expanded = isDropdownExpanded,
+            onDismissRequest = { isDropdownExpanded = false }
+        ) {
+            dropOffSuggestions.forEach { suggestion ->
+                DropdownMenuItem(
+                    text = { Text(suggestion) },
+                    onClick = {
+                        onSuggestionClick(suggestion)
+                        isDropdownExpanded = false // Close the dropdown
+                    }
+                )
+            }
+        }
+    }
+}
+
+
+//fun main(){
+//    println(fetchLocationSuggestions("kol"))
+//}

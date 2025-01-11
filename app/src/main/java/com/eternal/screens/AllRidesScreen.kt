@@ -20,10 +20,12 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.ArrowDropUp
+import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.DirectionsCar
 import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.Group
+import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.HourglassEmpty
 import androidx.compose.material.icons.filled.Payment
 import androidx.compose.material3.ButtonDefaults
@@ -36,6 +38,8 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -58,7 +62,7 @@ import com.eternal.fetchRides
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AllRidesScreen(userUid: String, onBack: () -> Unit) {
+fun AllRidesScreen(userUid: String, onClick: () -> Unit) {
     var rides by remember { mutableStateOf<List<Ride>>(emptyList()) }
     var selectedFilter by remember { mutableStateOf("All") }
     var isLoading by remember { mutableStateOf(false) }
@@ -73,17 +77,10 @@ fun AllRidesScreen(userUid: String, onBack: () -> Unit) {
     }
 
     Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("All Rides") },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(imageVector = Icons.Default.ArrowBack, contentDescription = "Back")
-                    }
-                },
-                colors = TopAppBarDefaults.smallTopAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primary
-                )
+        bottomBar = {
+            BottomNavigationBarForAllRides(
+                onHomeClicked = onClick,
+                onMyTripsClicked = { /* Do nothing, already on onMyTrips */ }
             )
         }
     ) { padding ->
@@ -244,4 +241,25 @@ fun StatusIndicator(currentStatus: String) {
             .clip(CircleShape)
             .background(statusColor)
     )
+}
+
+@Composable
+fun BottomNavigationBarForAllRides(
+    onHomeClicked: () -> Unit,
+    onMyTripsClicked: () -> Unit
+) {
+    NavigationBar {
+        NavigationBarItem(
+            icon = { Icon(Icons.Default.Home, contentDescription = "Home") },
+            label = { Text("Home") },
+            selected = false,
+            onClick = onHomeClicked
+        )
+        NavigationBarItem(
+            icon = { Icon(Icons.Default.CalendarToday, contentDescription = "My Trips") },
+            label = { Text("My Trips") },
+            selected = true,
+            onClick = onMyTripsClicked
+        )
+    }
 }
