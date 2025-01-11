@@ -60,6 +60,10 @@ dependencies {
     implementation(libs.androidx.ui.graphics)
     implementation(libs.androidx.ui.tooling.preview)
     implementation(libs.androidx.material3)
+    implementation(libs.androidx.material.icons.extended)
+    implementation("com.google.maps.android:maps-compose:2.11.2")
+    implementation("com.google.android.gms:play-services-maps:18.1.0")
+
 
     implementation(platform("com.google.firebase:firebase-bom:32.0.0"))
     implementation("com.google.firebase:firebase-auth-ktx")
@@ -69,6 +73,7 @@ dependencies {
     implementation("androidx.navigation:navigation-compose:2.7.2")
     implementation("com.google.android.gms:play-services-auth:20.7.0")
     implementation(libs.firebase.firestore.ktx)
+    implementation(libs.places)
 
 
     testImplementation(libs.junit)
