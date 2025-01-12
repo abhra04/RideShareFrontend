@@ -1,5 +1,6 @@
 package com.eternal
 
+import android.content.Context
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -26,18 +27,29 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun MainScreen(activity: MainActivity) {
-    var screenState by remember { mutableStateOf<String?>(null) } // Start as null to determine the initial screen
+    var screenState by remember { mutableStateOf<String?>(null) }
     var userName by remember { mutableStateOf("") }
     var phoneNumber by remember { mutableStateOf("") }
     var userUid by remember { mutableStateOf<String?>(null) }
     var isLoading by remember { mutableStateOf(true) }
+
+    val sharedPreferences = activity.getSharedPreferences("AppPreferences", Context.MODE_PRIVATE)
 
     LaunchedEffect(Unit) {
         isLoading = true
         val firebaseUser = FirebaseAuth.getInstance().currentUser
         if (firebaseUser != null) {
             userUid = firebaseUser.uid
-            screenState = "Dashboard"
+
+            // Retrieve the username from SharedPreferences
+            userName = sharedPreferences.getString("userName", "") ?: ""
+
+            if (userName.isEmpty()) {
+                // If the username is not found, navigate to EnterName screen
+                screenState = "EnterName"
+            } else {
+                screenState = "Dashboard"
+            }
         } else {
             screenState = "PhoneNumberSignUp"
         }
@@ -58,10 +70,17 @@ fun MainScreen(activity: MainActivity) {
                 screenState = nextScreen
                 phoneNumber = phone
                 userName = name
+
+                // Save the username to SharedPreferences
+                sharedPreferences.edit().putString("userName", userName).apply()
             }
             "EnterName" -> EnterNameScreen(userUid ?: "") { name ->
                 addUserToBackend(phoneNumber, name)
                 userName = name
+
+                // Save the username to SharedPreferences
+                sharedPreferences.edit().putString("userName", userName).apply()
+
                 screenState = "Dashboard"
             }
             "Dashboard" -> {
@@ -69,6 +88,10 @@ fun MainScreen(activity: MainActivity) {
                     name = userName,
                     onLogout = {
                         logout(activity)
+
+                        // Clear SharedPreferences on logout
+                        sharedPreferences.edit().clear().apply()
+
                         screenState = "PhoneNumberSignUp"
                     },
                     onShowAllRides = {
@@ -84,7 +107,6 @@ fun MainScreen(activity: MainActivity) {
         }
     }
 }
-
 
 
 

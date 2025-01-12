@@ -2,15 +2,10 @@ package com.eternal.screens
 
 
 import android.Manifest
-import com.google.android.libraries.places.api.Places
 import android.app.DatePickerDialog
 import android.app.TimePickerDialog
-import android.content.Context
 import android.content.pm.PackageManager
-import android.os.Looper
 import android.widget.Toast
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.*
@@ -19,50 +14,33 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccessTime
-import androidx.compose.material.icons.filled.ArrowDropDown
-import androidx.compose.material.icons.filled.ArrowDropUp
 import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.toSize
 import androidx.core.content.ContextCompat
 import com.eternal.models.RideRequest
-import com.google.android.gms.location.LocationCallback
-import com.google.android.gms.location.LocationRequest
-import com.google.android.gms.location.LocationResult
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.maps.model.BitmapDescriptorFactory
 import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.LatLng
-import com.google.android.libraries.places.api.model.AutocompletePrediction
-import com.google.android.libraries.places.api.model.AutocompleteSessionToken
-import com.google.android.libraries.places.api.net.FindAutocompletePredictionsRequest
-import com.google.android.libraries.places.api.net.PlacesClient
 import com.google.firebase.auth.FirebaseAuth
 import com.google.maps.android.compose.GoogleMap
 import com.google.maps.android.compose.Marker
 import com.google.maps.android.compose.rememberCameraPositionState
 import com.google.maps.android.compose.rememberMarkerState
-import com.squareup.moshi.JsonClass
-import com.squareup.moshi.Moshi
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
-import org.json.JSONObject
-import java.io.IOException
 import java.util.*
 
 
@@ -77,6 +55,7 @@ fun BookRideScreen(
     var mapHeightFraction by remember { mutableStateOf(0.33f) } // Start with 1/3rd for the map
     var boxHeight by remember { mutableStateOf(0) } // Total box height
     var exactPickupLocation by remember { mutableStateOf(LatLng(37.7749, -122.4194)) } // Default: San Francisco
+    var pinDropOffLocation by remember { mutableStateOf(LatLng(37.4229999, -122.0840575)) }
     var contactNumber by remember { mutableStateOf("") }
     var pickupDate by remember { mutableStateOf("") }
     var pickupTime by remember { mutableStateOf("") }
@@ -107,23 +86,6 @@ fun BookRideScreen(
     }
 
 
-    // Function to fetch location suggestions (must be called in a Composable context)
-//    val fetchLocationSuggestions = @androidx.compose.runtime.Composable { query: String ->
-//        // This should be a suspend function
-//        LaunchedEffect(query) {
-//            if (query.isBlank()) {
-//                pickupSuggestions = emptyList()
-//                dropOffSuggestions = emptyList()
-//            } else {
-//                // Make sure to launch a coroutine to handle the fetch operation
-//                val suggestions = fetchSuggestions(query)
-//                pickupSuggestions = suggestions
-//                dropOffSuggestions = suggestions
-//            }
-//        }
-//    }
-
-
 
     LaunchedEffect(currentUser) {
         contactNumber = currentUser?.phoneNumber ?: ""
@@ -132,13 +94,11 @@ fun BookRideScreen(
                 Manifest.permission.ACCESS_FINE_LOCATION
             ) == PackageManager.PERMISSION_GRANTED
         ) {
-            // Request current location
             fusedLocationClient.getCurrentLocation(
                 com.google.android.gms.location.Priority.PRIORITY_HIGH_ACCURACY,
                 null
             ).addOnSuccessListener { location ->
                 if (location != null) {
-                    // Update the map to the current location
                     exactPickupLocation = LatLng(location.latitude, location.longitude)
                 } else {
                     Toast.makeText(context, "Unable to fetch current location.", Toast.LENGTH_SHORT).show()
@@ -175,13 +135,35 @@ fun BookRideScreen(
             GoogleMap(
                 modifier = Modifier.fillMaxSize(),
                 cameraPositionState = rememberCameraPositionState {
-                    position = CameraPosition.fromLatLngZoom(userLocation.takeIf { it.latitude != 0.0 } ?: exactPickupLocation, 14f)
+                    position = CameraPosition.fromLatLngZoom(
+                        userLocation.takeIf { it.latitude != 0.0 } ?: exactPickupLocation, 14f
+                    )
                 }
             ) {
+                // Exact Pickup Location Marker
+                val exactPickupMarkerState = rememberMarkerState(position = exactPickupLocation)
                 Marker(
-                    state = rememberMarkerState(position = exactPickupLocation),
-                    title = "Exact Pickup Location"
+                    state = exactPickupMarkerState,
+                    title = "Exact Pickup Location",
+                    draggable = true // Enables dragging
                 )
+                LaunchedEffect(exactPickupMarkerState.position) {
+                    exactPickupLocation = exactPickupMarkerState.position
+                }
+
+                // Drop Off Location Marker
+                val dropOffMarkerState = rememberMarkerState(position = pinDropOffLocation)
+                Marker(
+                    state = dropOffMarkerState,
+                    title = "Drop Off Location",
+                    icon = BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_GREEN),
+                    draggable = true // Enables dragging
+                )
+                LaunchedEffect(dropOffMarkerState.position) {
+                    pinDropOffLocation = dropOffMarkerState.position
+                }
+
+                // Your Location Marker
                 if (userLocation.latitude != 0.0) {
                     Marker(
                         state = rememberMarkerState(position = userLocation),
@@ -407,7 +389,8 @@ fun BookRideScreen(
                                 numberOfPassengers = numberOfPassengers,
                                 openToSharing = openToSharing.toString(),
                                 okToSplitGroup = okToSplitGroup.toString(),
-                                exactPickupLocation = exactPickupLocation.toString()
+                                exactPickupLocationBox = exactPickupLocationBox,
+                                exactDropoffLocation = exactDropoffLocation
                             )
                         )
                     },
@@ -696,6 +679,8 @@ fun DropOffLocationField(
         }
     }
 }
+
+
 
 
 //fun main(){

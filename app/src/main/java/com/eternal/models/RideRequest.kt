@@ -11,5 +11,6 @@ data class RideRequest(
     val numberOfPassengers: String,
     val openToSharing: String,
     val okToSplitGroup: String,
-    val exactPickupLocation: String
+    val exactPickupLocationBox: String,
+    val exactDropoffLocation: String
 )
