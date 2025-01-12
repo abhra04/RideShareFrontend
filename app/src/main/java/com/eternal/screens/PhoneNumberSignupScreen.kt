@@ -2,6 +2,7 @@ package com.eternal.screens
 
 import android.view.ViewGroup
 import android.widget.VideoView
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -16,6 +17,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material3.Button
@@ -36,11 +38,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -73,34 +77,12 @@ fun PhoneNumberSignUpScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFFF8F9FA)) // Subtle light gray background
+            .background(brush = Brush.verticalGradient(listOf(Color(0xFF3EDBF0), Color(0xFFFEEA87))))
     ) {
-        // Background Video
-        AndroidView(
-            factory = {
-                val videoView = VideoView(it).apply {
-                    setVideoPath("android.resource://${context.packageName}/${R.raw.background_video_2}")
-                    setOnPreparedListener { mediaPlayer ->
-                        mediaPlayer.isLooping = true
-                        mediaPlayer.setVolume(0.5f, 0.5f)
-                        start()
-                    }
-                    layoutParams = ViewGroup.LayoutParams(
-                        ViewGroup.LayoutParams.MATCH_PARENT,
-                        ViewGroup.LayoutParams.MATCH_PARENT
-                    )
-                }
-                videoView
-            },
-            modifier = Modifier.fillMaxSize()
-        )
-
-        // Semi-transparent overlay for contrast
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(Color.Black.copy(alpha = 0.6f))
-        )
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            drawCircle(color = Color(0xFFFFA8A8), radius = 150f, center = center.copy(x = 100f, y = 200f))
+            drawCircle(color = Color(0xFF7BEE96), radius = 100f, center = center.copy(x = size.width - 100f, y = size.height - 400f))
+        }
 
         Column(
             modifier = Modifier
@@ -110,6 +92,15 @@ fun PhoneNumberSignUpScreen(
             verticalArrangement = Arrangement.Center
         ) {
             // App logo
+
+            Image(
+                painter = painterResource(id = R.drawable.ic_launcher_round), // Replace with your rounded logo resource
+                contentDescription = "RideShare Logo",
+                modifier = Modifier
+                    .size(100.dp) // Adjust the size as needed
+                    .padding(bottom = 8.dp) // Optional spacing below the logo
+            )
+
             Text(
                 text = "RideShare",
                 style = MaterialTheme.typography.displaySmall.copy(
@@ -119,7 +110,24 @@ fun PhoneNumberSignUpScreen(
                 )
             )
 
-            Spacer(modifier = Modifier.height(32.dp))
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 16.dp), // Optional vertical padding
+                contentAlignment = Alignment.Center // Centers the text horizontally
+            ) {
+                Text(
+                    text = "Welcome to RideShare!",
+                    fontSize = 28.sp, // Fixed font size
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF1A73E8),
+                    letterSpacing = 1.5.sp, // Fixed letter spacing
+                    modifier = Modifier.align(Alignment.Center) // Ensures alignment inside the box
+                )
+            }
+            Spacer(modifier = Modifier.height(24.dp))
 
             if (!isOtpSent) {
                 // Phone number input section
@@ -189,22 +197,17 @@ fun PhoneNumberSignUpScreen(
                                 singleLine = true,
                                 modifier = Modifier.fillMaxWidth(),
                                 colors = TextFieldDefaults.outlinedTextFieldColors(
-                                    unfocusedBorderColor = Color.Transparent,
-                                    focusedBorderColor = Color.Transparent,
-                                    disabledBorderColor = Color.Transparent,
+                                    unfocusedBorderColor = Color(0xFF1A73E8),
+                                    focusedBorderColor = Color(0xFF1A73E8),
+                                    disabledBorderColor = Color(0xFF1A73E8),
                                     errorBorderColor = Color.Transparent,
                                     focusedTextColor = Color.Black,
                                     cursorColor = Color.Black
                                 ),
+                                keyboardOptions = KeyboardOptions.Default.copy(
+                                    keyboardType = KeyboardType.Number // Sets the keyboard to number pad
+                                ),
                                 shape = RoundedCornerShape(0.dp), // No rounded corners
-                            )
-
-                            // Custom underline
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(1.dp)
-                                    .background(if (phoneNumber.isNotEmpty()) Color.Black else Color.Gray)
                             )
                         }
                     }
@@ -224,9 +227,13 @@ fun PhoneNumberSignUpScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(50.dp),
-                    shape = RoundedCornerShape(8.dp)
+                    shape = RoundedCornerShape(50.dp),
+                    colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = Color(0xFF1A73E8))
                 ) {
-                    Text("Login")
+                    Text(
+                        text = "Send OTP",
+                        style = MaterialTheme.typography.bodyLarge.copy(color = Color.White)
+                    )
                 }
             } else {
                 // OTP input section
@@ -260,16 +267,27 @@ fun PhoneNumberSignUpScreen(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                Button(onClick = {
-                    verifyOtp(activity, verificationId, otp) { isNewUser, name ->
-                        if (isNewUser) {
-                            onNavigation("EnterName", phoneNumber, "")
-                        } else {
-                            onNavigation("Dashboard", phoneNumber, name)
+                Button(
+                    onClick = {
+                        verifyOtp(activity, verificationId, otp) { isNewUser, name ->
+                            if (isNewUser) {
+                                onNavigation("EnterName", phoneNumber, "")
+                            } else {
+                                onNavigation("Dashboard", phoneNumber, name)
+                            }
                         }
-                    }
-                }) {
-                    Text("Verify OTP")
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(50.dp)
+                        .padding(horizontal = 16.dp),
+                    shape = RoundedCornerShape(50.dp),
+                    colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = Color(0xFFFFA8A8))
+                ) {
+                    Text(
+                        text = "Verify OTP",
+                        style = MaterialTheme.typography.bodyLarge.copy(color = Color.White)
+                    )
                 }
             }
         }

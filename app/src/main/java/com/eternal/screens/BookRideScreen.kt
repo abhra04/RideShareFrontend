@@ -10,6 +10,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -20,12 +21,16 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import com.eternal.models.RideRequest
 import com.google.android.gms.location.LocationServices
@@ -180,7 +185,7 @@ fun BookRideScreen(
                 .fillMaxWidth()
                 .height(8.dp)
                 .offset { IntOffset(0, (boxHeight * mapHeightFraction).toInt()) }
-                .background(MaterialTheme.colorScheme.primary)
+                .background(Color(0xFF1A73E8))
                 .pointerInput(Unit) {
                     detectDragGestures { _, dragAmount ->
                         mapHeightFraction = (mapHeightFraction + dragAmount.y / boxHeight).coerceIn(0.2f, 0.8f)
@@ -196,8 +201,16 @@ fun BookRideScreen(
                 .align(Alignment.BottomStart)
                 .padding(16.dp)
                 .verticalScroll(rememberScrollState())
+                .background(Color.White, shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp))
         ) {
-            Text("Book a Ride", style = MaterialTheme.typography.titleLarge)
+            Text(
+                "Book a Ride",
+                style = MaterialTheme.typography.titleLarge.copy(
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF1A73E8),
+                    letterSpacing = 1.2.sp
+                )
+            )
 
             Spacer(modifier = Modifier.height(16.dp))
 
@@ -206,10 +219,17 @@ fun BookRideScreen(
                 onValueChange = { contactNumber = it },
                 label = { Text("Contact Number") },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                colors = TextFieldDefaults.outlinedTextFieldColors(
+                    unfocusedBorderColor = Color(0xFF1A73E8),
+                    focusedBorderColor = Color(0xFF3EDBF0),
+                    cursorColor = Color.Black
+                ),
+                shape = RoundedCornerShape(8.dp),
                 modifier = Modifier.fillMaxWidth()
             )
 
             Spacer(modifier = Modifier.height(16.dp))
+
 
             // Pickup Location Dropdown
             ExposedDropdownMenuBox(
@@ -224,7 +244,11 @@ fun BookRideScreen(
                     trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = pickupDropdownExpanded) },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .menuAnchor()
+                        .menuAnchor(),
+                    colors = TextFieldDefaults.outlinedTextFieldColors(
+                        unfocusedBorderColor = Color(0xFF1A73E8),
+                        focusedBorderColor = Color(0xFF3EDBF0)
+                    )
                 )
                 ExposedDropdownMenu(
                     expanded = pickupDropdownExpanded,
@@ -294,7 +318,10 @@ fun BookRideScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .menuAnchor(),
-                    enabled = pickupLocation.isNotEmpty()
+                    colors = TextFieldDefaults.outlinedTextFieldColors(
+                        unfocusedBorderColor = Color(0xFF1A73E8),
+                        focusedBorderColor = Color(0xFF3EDBF0)
+                    )
                 )
                 ExposedDropdownMenu(
                     expanded = dropOffDropdownExpanded,
@@ -406,25 +433,6 @@ fun BookRideScreen(
 }
 
 @Composable
-fun DraggableMarker(
-    initialPosition: LatLng,
-    title: String,
-    onPositionChange: (LatLng) -> Unit
-) {
-    val markerState = rememberMarkerState(position = initialPosition)
-
-    Marker(
-        state = markerState,
-        title = title,
-        draggable = true
-    )
-
-    LaunchedEffect(markerState.position) {
-        onPositionChange(markerState.position)
-    }
-}
-
-@Composable
 fun PickupDatePicker(
     currentDate: String,
     onDateSelected: (String) -> Unit
@@ -522,16 +530,18 @@ fun BottomNavigationBar(
     onHomeClicked: () -> Unit,
     onMyTripsClicked: () -> Unit
 ) {
-    NavigationBar {
+    NavigationBar(
+        containerColor = Color(0xFFE3FDFD)
+    ) {
         NavigationBarItem(
-            icon = { Icon(Icons.Default.Home, contentDescription = "Home") },
-            label = { Text("Home") },
+            icon = { Icon(Icons.Default.Home, contentDescription = "Home", tint = Color(0xFF64B6FF)) },
+            label = { Text("Home", color = Color(0xFF64B6FF)) },
             selected = true,
             onClick = onHomeClicked
         )
         NavigationBarItem(
-            icon = { Icon(Icons.Default.CalendarToday, contentDescription = "My Trips") },
-            label = { Text("My Trips") },
+            icon = { Icon(Icons.Default.CalendarToday, contentDescription = "My Trips", tint = Color(0xFF64B6FF)) },
+            label = { Text("My Trips", color = Color(0xFF64B6FF)) },
             selected = false,
             onClick = onMyTripsClicked
         )
@@ -606,8 +616,12 @@ fun PickupLocationField(
             },
             label = { Text("Exact Pick Up Location") },
             modifier = Modifier
-                .menuAnchor() // Required for proper alignment with ExposedDropdownMenuBox
-                .fillMaxWidth(),
+                .fillMaxWidth()
+                .menuAnchor(),
+            colors = TextFieldDefaults.outlinedTextFieldColors(
+                unfocusedBorderColor = Color(0xFF1A73E8),
+                focusedBorderColor = Color(0xFF3EDBF0)
+            ),
             trailingIcon = {
                 ExposedDropdownMenuDefaults.TrailingIcon(expanded = isDropdownExpanded)
             }
@@ -655,8 +669,12 @@ fun DropOffLocationField(
             },
             label = { Text("Exact Drop Off Location") },
             modifier = Modifier
-                .menuAnchor() // Required for proper alignment with ExposedDropdownMenuBox
-                .fillMaxWidth(),
+                .fillMaxWidth()
+                .menuAnchor(),
+            colors = TextFieldDefaults.outlinedTextFieldColors(
+                unfocusedBorderColor = Color(0xFF1A73E8),
+                focusedBorderColor = Color(0xFF3EDBF0)
+            ),
             trailingIcon = {
                 ExposedDropdownMenuDefaults.TrailingIcon(expanded = isDropdownExpanded)
             }

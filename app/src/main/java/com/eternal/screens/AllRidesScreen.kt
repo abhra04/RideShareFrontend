@@ -1,61 +1,20 @@
 package com.eternal.screens
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.wrapContentSize
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.ArrowDropDown
-import androidx.compose.material.icons.filled.ArrowDropUp
-import androidx.compose.material.icons.filled.CalendarToday
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.DirectionsCar
-import androidx.compose.material.icons.filled.FilterList
-import androidx.compose.material.icons.filled.Group
-import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.HourglassEmpty
-import androidx.compose.material.icons.filled.Payment
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.unit.dp
 import com.eternal.models.Ride
 import com.eternal.fetchRides
@@ -66,7 +25,6 @@ fun AllRidesScreen(userUid: String, onClick: () -> Unit) {
     var rides by remember { mutableStateOf<List<Ride>>(emptyList()) }
     var selectedFilter by remember { mutableStateOf("All") }
     var isLoading by remember { mutableStateOf(false) }
-    val focusManager = LocalFocusManager.current
 
     LaunchedEffect(selectedFilter) {
         isLoading = true
@@ -80,7 +38,7 @@ fun AllRidesScreen(userUid: String, onClick: () -> Unit) {
         bottomBar = {
             BottomNavigationBarForAllRides(
                 onHomeClicked = onClick,
-                onMyTripsClicked = { /* Do nothing, already on onMyTrips */ }
+                onMyTripsClicked = { /* Already on MyTrips */ }
             )
         }
     ) { padding ->
@@ -88,15 +46,18 @@ fun AllRidesScreen(userUid: String, onClick: () -> Unit) {
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
+                .background(
+                    Brush.verticalGradient(
+                        colors = listOf(Color(0xFFE3FDFD), Color(0xFFFFE6FA))
+                    )
+                )
         ) {
-            // Filter Dropdown
             DropdownMenuFilter(selectedFilter = selectedFilter) { filter ->
                 selectedFilter = filter
             }
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Rides List
             if (isLoading) {
                 CircularProgressIndicator(modifier = Modifier.align(Alignment.CenterHorizontally))
             } else {
@@ -129,15 +90,15 @@ fun DropdownMenuFilter(selectedFilter: String, onFilterSelected: (String) -> Uni
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .wrapContentSize(Alignment.Center) // Align the box to the center
+            .wrapContentSize(Alignment.Center)
     ) {
-        // Trigger Button
         OutlinedButton(
             onClick = { expanded = !expanded },
-            modifier = Modifier.align(Alignment.Center), // Center button in the Box
-            shape = RoundedCornerShape(16.dp),
+            modifier = Modifier.align(Alignment.Center),
+            shape = RoundedCornerShape(24.dp),
             colors = ButtonDefaults.outlinedButtonColors(
-                contentColor = MaterialTheme.colorScheme.primary
+                contentColor = Color(0xFF64B6FF),
+                containerColor = Color.White
             )
         ) {
             Text(
@@ -151,15 +112,13 @@ fun DropdownMenuFilter(selectedFilter: String, onFilterSelected: (String) -> Uni
             )
         }
 
-        // Dropdown Menu
         DropdownMenu(
             expanded = expanded,
             onDismissRequest = { expanded = false },
             modifier = Modifier
-                .align(Alignment.Center) // Ensure the dropdown aligns to the center
                 .background(
-                    color = MaterialTheme.colorScheme.surface,
-                    shape = RoundedCornerShape(12.dp)
+                    color = Color.White,
+                    shape = RoundedCornerShape(16.dp)
                 )
         ) {
             filters.forEach { (filter, icon) ->
@@ -170,7 +129,7 @@ fun DropdownMenuFilter(selectedFilter: String, onFilterSelected: (String) -> Uni
                                 imageVector = icon,
                                 contentDescription = null,
                                 modifier = Modifier.size(24.dp),
-                                tint = MaterialTheme.colorScheme.primary
+                                tint = Color(0xFF64B6FF)
                             )
                             Spacer(modifier = Modifier.width(12.dp))
                             Text(filter)
@@ -186,15 +145,14 @@ fun DropdownMenuFilter(selectedFilter: String, onFilterSelected: (String) -> Uni
     }
 }
 
-
 @Composable
 fun RideTile(ride: Ride) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 8.dp),
-        shape = RoundedCornerShape(8.dp),
-        elevation = CardDefaults.cardElevation(4.dp)
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFF013131))
     ) {
         Row(
             modifier = Modifier
@@ -204,12 +162,12 @@ fun RideTile(ride: Ride) {
             Column(
                 modifier = Modifier.weight(1f)
             ) {
-                Text("Pickup: ${ride.pickupLocation}", style = MaterialTheme.typography.bodyLarge)
-                Text("Dropoff: ${ride.dropoffLocation}", style = MaterialTheme.typography.bodyLarge)
-                Text("Pickup Time: ${ride.pickupTime}", style = MaterialTheme.typography.bodyLarge)
-                Text("Pickup Date: ${ride.pickupDate}", style = MaterialTheme.typography.bodyLarge)
+                Text("Pickup: ${ride.pickupLocation}", style = MaterialTheme.typography.bodyLarge,color = Color(0xFFE0FFFF))
+                Text("Dropoff: ${ride.dropoffLocation}", style = MaterialTheme.typography.bodyLarge,color = Color(0xFFE0FFFF))
+                Text("Pickup Time: ${ride.pickupTime}", style = MaterialTheme.typography.bodyLarge,color = Color(0xFFE0FFFF))
+                Text("Pickup Date: ${ride.pickupDate}", style = MaterialTheme.typography.bodyLarge,color = Color(0xFFE0FFFF))
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("Status: ${ride.currentStatus}", style = MaterialTheme.typography.bodyMedium)
+                    Text("Status: ${ride.currentStatus}", style = MaterialTheme.typography.bodyMedium,color = Color(0xFFE0FFFF))
                     Spacer(modifier = Modifier.width(8.dp))
                     StatusIndicator(currentStatus = ride.currentStatus)
                 }
@@ -221,7 +179,7 @@ fun RideTile(ride: Ride) {
                 modifier = Modifier
                     .size(40.dp)
                     .align(Alignment.CenterVertically),
-                tint = MaterialTheme.colorScheme.primary
+                tint = Color(0xFF64B6FF)
             )
         }
     }
@@ -232,12 +190,12 @@ fun StatusIndicator(currentStatus: String) {
     val statusColor = when (currentStatus.lowercase()) {
         "completed" -> Color.Green
         "pending offer" -> Color.Red
-        else -> Color(0xFFFFA500) // Orange
+        else -> Color(0xFFFFA500)
     }
 
     Box(
         modifier = Modifier
-            .size(12.dp) // Small circle
+            .size(12.dp)
             .clip(CircleShape)
             .background(statusColor)
     )
@@ -248,16 +206,18 @@ fun BottomNavigationBarForAllRides(
     onHomeClicked: () -> Unit,
     onMyTripsClicked: () -> Unit
 ) {
-    NavigationBar {
+    NavigationBar(
+        containerColor = Color(0xFFE3FDFD)
+    ) {
         NavigationBarItem(
-            icon = { Icon(Icons.Default.Home, contentDescription = "Home") },
-            label = { Text("Home") },
+            icon = { Icon(Icons.Default.Home, contentDescription = "Home", tint = Color(0xFF64B6FF)) },
+            label = { Text("Home", color = Color(0xFF64B6FF)) },
             selected = false,
             onClick = onHomeClicked
         )
         NavigationBarItem(
-            icon = { Icon(Icons.Default.CalendarToday, contentDescription = "My Trips") },
-            label = { Text("My Trips") },
+            icon = { Icon(Icons.Default.CalendarToday, contentDescription = "My Trips", tint = Color(0xFF64B6FF)) },
+            label = { Text("My Trips", color = Color(0xFF64B6FF)) },
             selected = true,
             onClick = onMyTripsClicked
         )
