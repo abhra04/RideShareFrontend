@@ -49,8 +49,10 @@ import com.google.android.gms.location.LocationServices
 import com.google.android.gms.maps.model.BitmapDescriptorFactory
 import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.LatLng
+import com.google.android.gms.maps.model.MapStyleOptions
 import com.google.firebase.auth.FirebaseAuth
 import com.google.maps.android.compose.GoogleMap
+import com.google.maps.android.compose.MapProperties
 import com.google.maps.android.compose.Marker
 import com.google.maps.android.compose.rememberCameraPositionState
 import com.google.maps.android.compose.rememberMarkerState
@@ -76,8 +78,8 @@ fun BookRideScreen(
 ) {
     var mapHeightFraction by remember { mutableStateOf(0.33f) } // Start with 1/3rd for the map
     var boxHeight by remember { mutableStateOf(0) } // Total box height
-    var exactPickupLocation by remember { mutableStateOf(LatLng(37.7749, -122.4194)) } // Default: San Francisco
-    var pinDropOffLocation by remember { mutableStateOf(LatLng(37.4229999, -122.0840575)) }
+    var exactPickupLocation by remember { mutableStateOf(LatLng(22.314871, 87.286537)) }
+    var pinDropOffLocation by remember { mutableStateOf(LatLng(22.315971, 87.287637)) }
     var contactNumber by remember { mutableStateOf("") }
     var pickupDate by remember { mutableStateOf("") }
     var pickupTime by remember { mutableStateOf("") }
@@ -163,9 +165,10 @@ fun BookRideScreen(
                 modifier = Modifier.fillMaxSize(),
                 cameraPositionState = rememberCameraPositionState {
                     position = CameraPosition.fromLatLngZoom(
-                        userLocation.takeIf { it.latitude != 0.0 } ?: exactPickupLocation, 14f
+                        userLocation.takeIf { it.latitude != 0.0 } ?: exactPickupLocation, 16f // Closer zoom level
                     )
-                }
+                },
+                properties = MapProperties(mapStyleOptions = MapStyleOptions(mapStyle.trimIndent()))
             ) {
                 // Exact Pickup Location Marker
                 val exactPickupMarkerState = rememberMarkerState(position = exactPickupLocation)
@@ -205,7 +208,7 @@ fun BookRideScreen(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(8.dp)
+                .height(2.dp)
                 .offset { IntOffset(0, (boxHeight * mapHeightFraction).toInt()) }
                 .background(Color(0xFF1A73E8))
                 .pointerInput(Unit) {
@@ -410,7 +413,8 @@ fun BookRideScreen(
                         )
                     },
                     modifier = Modifier.fillMaxWidth(),
-                    enabled = pickupLocation.isNotEmpty() && dropOffLocation.isNotEmpty()
+                    enabled = pickupLocation.isNotEmpty() && dropOffLocation.isNotEmpty() ,
+                    colors = ButtonDefaults.buttonColors(Color(0xFF00FFFF))
                 ) {
                     Text("Book A Ride")
                 }
@@ -420,97 +424,6 @@ fun BookRideScreen(
     }
 }
 
-@Composable
-fun PickupDatePicker(
-    currentDate: String,
-    onDateSelected: (String) -> Unit
-) {
-    val context = LocalContext.current
-    var isDialogOpen by remember { mutableStateOf(false) }
-
-    // DatePicker Dialog
-    if (isDialogOpen) {
-        val calendar = Calendar.getInstance()
-        val datePickerDialog = DatePickerDialog(
-            context,
-            { _, year, month, dayOfMonth ->
-                val selectedDate = "$year-${month + 1}-$dayOfMonth"
-                onDateSelected(selectedDate)
-            },
-            calendar.get(Calendar.YEAR),
-            calendar.get(Calendar.MONTH),
-            calendar.get(Calendar.DAY_OF_MONTH)
-        )
-
-        LaunchedEffect(isDialogOpen) {
-            datePickerDialog.show()
-            isDialogOpen = false
-        }
-    }
-
-    OutlinedTextField(
-        value = currentDate,
-        onValueChange = {},
-        label = { Text("Pickup Date") },
-        modifier = Modifier.fillMaxWidth(),
-        readOnly = true,
-        trailingIcon = {
-            IconButton(onClick = { isDialogOpen = true }) {
-                Icon(imageVector = Icons.Default.CalendarToday, contentDescription = "Select Date")
-            }
-        }
-    )
-}
-
-@Composable
-fun PickupTimePicker(
-    currentTime: String,
-    onTimeSelected: (String) -> Unit
-) {
-    val context = LocalContext.current
-    var isDialogOpen by remember { mutableStateOf(false) }
-
-    // TimePicker Dialog
-    if (isDialogOpen) {
-        val calendar = Calendar.getInstance()
-        val timePickerDialog = TimePickerDialog(
-            context,
-            { _, hourOfDay, minute ->
-                val selectedTime = String.format("%02d:%02d", hourOfDay, minute)
-                onTimeSelected(selectedTime)
-            },
-            calendar.get(Calendar.HOUR_OF_DAY),
-            calendar.get(Calendar.MINUTE),
-            true
-        )
-
-        LaunchedEffect(isDialogOpen) {
-            timePickerDialog.show()
-            isDialogOpen = false
-        }
-    }
-
-    OutlinedTextField(
-        value = currentTime,
-        onValueChange = {},
-        label = { Text("Pickup Time") },
-        modifier = Modifier.fillMaxWidth(),
-        readOnly = true,
-        trailingIcon = {
-            IconButton(onClick = { isDialogOpen = true }) {
-                Icon(imageVector = Icons.Default.AccessTime, contentDescription = "Select Time")
-            }
-        }
-    )
-}
-
-@Composable
-fun CheckboxRow(label: String, value: Boolean, onValueChange: (Boolean) -> Unit) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Checkbox(checked = value, onCheckedChange = onValueChange)
-        Text(label)
-    }
-}
 
 
 @Composable
@@ -753,7 +666,7 @@ fun SpinnerDatePicker(
     val days = (1..31).toList()
     val months = listOf("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
     val years = (1900..2100).toList()
-    val hours = (1..24).map { String.format("%02d", it) }.toList()
+    val hours = (0..24).map { String.format("%02d", it) }.toList()
     val minutes = (0..59).map { String.format("%02d", it) }.toList()
 
     var selectedDay by remember { mutableStateOf(initialDay) }
@@ -859,6 +772,115 @@ fun SpinnerDatePicker(
 }
 
 
+
+val mapStyle = """
+    [
+        {
+            "elementType": "geometry",
+            "stylers": [
+                {
+                    "color": "#a7d8f0"  // Light blue for non-road features
+                }
+            ]
+        },
+        {
+            "elementType": "geometry.stroke",
+            "stylers": [
+                {
+                    "color": "#ffd700"  // Bright yellow for road strokes
+                }
+            ]
+        },
+        {
+            "elementType": "labels.icon",
+            "stylers": [
+                {
+                    "visibility": "off"  // Hide icons
+                }
+            ]
+        },
+        {
+            "elementType": "labels.text.fill",
+            "stylers": [
+                {
+                    "color": "#000000"  // White for text
+                }
+            ]
+        },
+        {
+            "elementType": "labels.text.stroke",
+            "stylers": [
+                {
+                    "color": "#a7d8f0"  // Light blue for text strokes
+                }
+            ]
+        },
+        {
+            "featureType": "administrative",
+            "elementType": "geometry.fill",
+            "stylers": [
+                {
+                    "color": "#a7d8f0"  // Light blue for administrative regions
+                }
+            ]
+        },
+        {
+            "featureType": "road",
+            "elementType": "geometry",
+            "stylers": [
+                {
+                    "color": "#ffd700"  // Bright yellow for roads
+                }
+            ]
+        },
+        {
+            "featureType": "road.highway",
+            "elementType": "geometry",
+            "stylers": [
+                {
+                    "color": "#ffd700"  // Bright yellow for highways
+                }
+            ]
+        },
+        {
+            "featureType": "road.local",
+            "stylers": [
+                {
+                    "visibility": "off"  // Hide local roads initially
+                }
+            ]
+        },
+        {
+            "featureType": "road.local",
+            "stylers": [
+                {
+                    "visibility": "on"
+                }
+            ],
+            "conditions": {
+                "zoom": 15  // Show local roads when zoomed in beyond level 15
+            }
+        },
+        {
+            "featureType": "water",
+            "elementType": "geometry",
+            "stylers": [
+                {
+                    "color": "#5b8ef7"  // Bright blue for water bodies
+                }
+            ]
+        },
+        {
+            "featureType": "landscape",
+            "elementType": "geometry",
+            "stylers": [
+                {
+                    "color": "#a7d8f0"  // Light blue for land areas
+                }
+            ]
+        }
+    ]
+"""
 
 
 
