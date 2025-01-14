@@ -191,3 +191,113 @@ fun submitRideRequest(
         }
     })
 }
+
+
+val mapStyle = """
+    [
+        {
+            "elementType": "geometry",
+            "stylers": [
+                {
+                    "color": "#a7d8f0"  // Light blue for non-road features
+                }
+            ]
+        },
+        {
+            "elementType": "geometry.stroke",
+            "stylers": [
+                {
+                    "color": "#ffd700"  // Bright yellow for road strokes
+                }
+            ]
+        },
+        {
+            "elementType": "labels.icon",
+            "stylers": [
+                {
+                    "visibility": "off"  // Hide icons
+                }
+            ]
+        },
+        {
+            "elementType": "labels.text.fill",
+            "stylers": [
+                {
+                    "color": "#000000"  // White for text
+                }
+            ]
+        },
+        {
+            "elementType": "labels.text.stroke",
+            "stylers": [
+                {
+                    "color": "#a7d8f0"  // Light blue for text strokes
+                }
+            ]
+        },
+        {
+            "featureType": "administrative",
+            "elementType": "geometry.fill",
+            "stylers": [
+                {
+                    "color": "#a7d8f0"  // Light blue for administrative regions
+                }
+            ]
+        },
+        {
+            "featureType": "road",
+            "elementType": "geometry",
+            "stylers": [
+                {
+                    "color": "#ffd700"  // Bright yellow for roads
+                }
+            ]
+        },
+        {
+            "featureType": "road.highway",
+            "elementType": "geometry",
+            "stylers": [
+                {
+                    "color": "#ffd700"  // Bright yellow for highways
+                }
+            ]
+        },
+        {
+            "featureType": "road.local",
+            "stylers": [
+                {
+                    "visibility": "off"  // Hide local roads initially
+                }
+            ]
+        },
+        {
+            "featureType": "road.local",
+            "stylers": [
+                {
+                    "visibility": "on"
+                }
+            ],
+            "conditions": {
+                "zoom": 15  // Show local roads when zoomed in beyond level 15
+            }
+        },
+        {
+            "featureType": "water",
+            "elementType": "geometry",
+            "stylers": [
+                {
+                    "color": "#5b8ef7"  // Bright blue for water bodies
+                }
+            ]
+        },
+        {
+            "featureType": "landscape",
+            "elementType": "geometry",
+            "stylers": [
+                {
+                    "color": "#a7d8f0"  // Light blue for land areas
+                }
+            ]
+        }
+    ]
+"""

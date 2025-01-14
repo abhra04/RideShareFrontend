@@ -21,6 +21,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -65,6 +66,7 @@ fun PhoneNumberSignUpScreen(
     var verificationId by remember { mutableStateOf("") }
     var selectedCountry by remember { mutableStateOf(Country("+91", "India", R.drawable.india_flag)) }
     var expanded by remember { mutableStateOf(false) }
+    var isLoading by remember { mutableStateOf(false) } // State to control loading animation
 
     val context = LocalContext.current
     val countries = listOf(
@@ -91,14 +93,12 @@ fun PhoneNumberSignUpScreen(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            // App logo
-
             Image(
                 painter = painterResource(id = R.drawable.ic_launcher_round),
                 contentDescription = "RideShare Logo",
                 modifier = Modifier
-                    .size(100.dp) // Adjust the size as needed
-                    .padding(bottom = 8.dp) // Optional spacing below the logo
+                    .size(100.dp)
+                    .padding(bottom = 8.dp)
             )
 
             Text(
@@ -112,25 +112,18 @@ fun PhoneNumberSignUpScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 16.dp), // Optional vertical padding
-                contentAlignment = Alignment.Center // Centers the text horizontally
-            ) {
-                Text(
-                    text = "Welcome to RideShare!",
-                    fontSize = 28.sp, // Fixed font size
-                    fontWeight = FontWeight.Bold,
-                    color = Color(0xFF1A73E8),
-                    letterSpacing = 1.5.sp, // Fixed letter spacing
-                    modifier = Modifier.align(Alignment.Center) // Ensures alignment inside the box
-                )
-            }
+            Text(
+                text = "Welcome to RideShare!",
+                fontSize = 28.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color(0xFF1A73E8),
+                letterSpacing = 1.5.sp,
+                modifier = Modifier.padding(vertical = 16.dp)
+            )
+
             Spacer(modifier = Modifier.height(24.dp))
 
             if (!isOtpSent) {
-                // Phone number input section
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -140,7 +133,6 @@ fun PhoneNumberSignUpScreen(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    // Country code dropdown
                     Box {
                         TextButton(onClick = { expanded = true }) {
                             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 8.dp)) {
@@ -184,44 +176,33 @@ fun PhoneNumberSignUpScreen(
                         }
                     }
 
-                    // Phone number field
-                    Box(
-                        modifier = Modifier
-                            .padding(bottom = 8.dp) // Optional padding for space around the text field
-                    ) {
-                        Column {
-                            OutlinedTextField(
-                                value = phoneNumber,
-                                onValueChange = { phoneNumber = it },
-                                label = { Text("Phone Number") },
-                                singleLine = true,
-                                modifier = Modifier.fillMaxWidth(),
-                                colors = TextFieldDefaults.outlinedTextFieldColors(
-                                    unfocusedBorderColor = Color(0xFF1A73E8),
-                                    focusedBorderColor = Color(0xFF1A73E8),
-                                    disabledBorderColor = Color(0xFF1A73E8),
-                                    errorBorderColor = Color.Transparent,
-                                    focusedTextColor = Color.Black,
-                                    cursorColor = Color.Black
-                                ),
-                                keyboardOptions = KeyboardOptions.Default.copy(
-                                    keyboardType = KeyboardType.Number // Sets the keyboard to number pad
-                                ),
-                                shape = RoundedCornerShape(0.dp), // No rounded corners
-                            )
-                        }
-                    }
+                    OutlinedTextField(
+                        value = phoneNumber,
+                        onValueChange = { phoneNumber = it },
+                        label = { Text("Phone Number") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = TextFieldDefaults.outlinedTextFieldColors(
+                            unfocusedBorderColor = Color(0xFF1A73E8),
+                            focusedBorderColor = Color(0xFF1A73E8),
+                            focusedTextColor = Color.Black,
+                            cursorColor = Color.Black
+                        ),
+                        keyboardOptions = KeyboardOptions.Default.copy(keyboardType = KeyboardType.Number),
+                        shape = RoundedCornerShape(0.dp)
+                    )
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // Send OTP button
                 Button(
                     onClick = {
+                        isLoading = true
                         val fullPhoneNumber = "${selectedCountry.code}$phoneNumber"
                         sendOtp(activity, fullPhoneNumber) { id ->
                             verificationId = id
                             isOtpSent = true
+                            isLoading = false
                         }
                     },
                     modifier = Modifier
@@ -235,8 +216,16 @@ fun PhoneNumberSignUpScreen(
                         style = MaterialTheme.typography.bodyLarge.copy(color = Color.White)
                     )
                 }
+
+                if (isLoading) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    CircularProgressIndicator(
+                        color = Color(0xFF1A73E8),
+                        strokeWidth = 2.dp,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
             } else {
-                // OTP input section
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -269,7 +258,9 @@ fun PhoneNumberSignUpScreen(
 
                 Button(
                     onClick = {
+                        isLoading = true
                         verifyOtp(activity, verificationId, otp) { isNewUser, name ->
+                            isLoading = false
                             if (isNewUser) {
                                 onNavigation("EnterName", phoneNumber, "")
                             } else {
@@ -289,10 +280,18 @@ fun PhoneNumberSignUpScreen(
                         style = MaterialTheme.typography.bodyLarge.copy(color = Color.White)
                     )
                 }
+
+                if (isLoading) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    CircularProgressIndicator(
+                        color = Color(0xFFFFA8A8),
+                        strokeWidth = 2.dp,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
             }
         }
     }
 }
 
-// Country data model
 data class Country(val code: String, val name: String, val flagRes: Int)

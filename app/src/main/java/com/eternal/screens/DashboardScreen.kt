@@ -1,5 +1,7 @@
 package com.eternal.screens
 
+import android.os.Build
+import androidx.annotation.RequiresApi
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
@@ -54,6 +56,7 @@ import com.eternal.R
 import com.eternal.submitRideRequest
 import com.google.firebase.auth.FirebaseAuth
 
+@RequiresApi(Build.VERSION_CODES.O)
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DashboardScreen(name: String, onLogout: () -> Unit, onShowAllRides: () -> Unit) {
