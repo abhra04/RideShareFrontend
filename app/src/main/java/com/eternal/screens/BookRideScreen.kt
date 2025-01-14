@@ -5,11 +5,21 @@ import android.Manifest
 import android.app.DatePickerDialog
 import android.app.TimePickerDialog
 import android.content.pm.PackageManager
+import android.os.Build
 import android.widget.Toast
+import androidx.annotation.RequiresApi
+import androidx.compose.animation.core.Animatable
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -21,6 +31,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
@@ -28,6 +39,7 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -46,10 +58,15 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.LocalTime
+import java.time.format.DateTimeFormatter
 import java.util.*
 
 
 
+@RequiresApi(Build.VERSION_CODES.O)
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun BookRideScreen(
@@ -71,6 +88,8 @@ fun BookRideScreen(
     var exactPickupLocationBox by  remember { mutableStateOf("") }
     var pickupSuggestions by remember { mutableStateOf(emptyList<String>()) }
     var dropOffSuggestions by remember { mutableStateOf(emptyList<String>()) }
+    val dateFormatter: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd") // Customize the pattern
+    val timeformatter: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm")
 
     val currentUser = FirebaseAuth.getInstance().currentUser
     val context = LocalContext.current
@@ -89,11 +108,13 @@ fun BookRideScreen(
         "CCU" -> listOf("KGP")
         else -> emptyList()
     }
+    var currentDateTime = LocalDateTime.now()
 
 
 
     LaunchedEffect(currentUser) {
         contactNumber = currentUser?.phoneNumber ?: ""
+        currentDateTime = LocalDateTime.now()
         if (ContextCompat.checkSelfPermission(
                 context,
                 Manifest.permission.ACCESS_FINE_LOCATION
@@ -114,6 +135,7 @@ fun BookRideScreen(
         } else {
             Toast.makeText(context, "Location permission not granted.", Toast.LENGTH_LONG).show()
         }
+
     }
 
     Scaffold(
@@ -203,69 +225,87 @@ fun BookRideScreen(
                 .verticalScroll(rememberScrollState())
                 .background(Color.White, shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp))
         ) {
-            Text(
-                "Book a Ride",
-                style = MaterialTheme.typography.titleLarge.copy(
-                    fontWeight = FontWeight.Bold,
-                    color = Color(0xFF1A73E8),
-                    letterSpacing = 1.2.sp
-                )
-            )
 
-            Spacer(modifier = Modifier.height(16.dp))
-
-            OutlinedTextField(
-                value = contactNumber,
-                onValueChange = { contactNumber = it },
-                label = { Text("Contact Number") },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
-                colors = TextFieldDefaults.outlinedTextFieldColors(
-                    unfocusedBorderColor = Color(0xFF1A73E8),
-                    focusedBorderColor = Color(0xFF3EDBF0),
-                    cursorColor = Color.Black
-                ),
-                shape = RoundedCornerShape(8.dp),
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-
-            // Pickup Location Dropdown
-            ExposedDropdownMenuBox(
-                expanded = pickupDropdownExpanded,
-                onExpandedChange = { pickupDropdownExpanded = it }
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 4.dp), // Add horizontal padding around the row
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                OutlinedTextField(
-                    value = pickupLocation,
-                    onValueChange = { },
-                    label = { Text("Pickup Location") },
-                    readOnly = true,
-                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = pickupDropdownExpanded) },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .menuAnchor(),
-                    colors = TextFieldDefaults.outlinedTextFieldColors(
-                        unfocusedBorderColor = Color(0xFF1A73E8),
-                        focusedBorderColor = Color(0xFF3EDBF0)
-                    )
-                )
-                ExposedDropdownMenu(
+                // Pickup Location Dropdown
+                ExposedDropdownMenuBox(
                     expanded = pickupDropdownExpanded,
-                    onDismissRequest = { pickupDropdownExpanded = false }
+                    onExpandedChange = { pickupDropdownExpanded = it }
                 ) {
-                    pickupOptions.forEach { option ->
-                        DropdownMenuItem(
-                            text = { Text(option) },
-                            onClick = {
-                                pickupLocation = option
-                                dropOffLocation = "" // Reset dropOffLocation
-                                pickupDropdownExpanded = false
-                            }
+                    OutlinedTextField(
+                        value = pickupLocation,
+                        onValueChange = { },
+                        label = { Text("Pick-Up") },
+                        readOnly = true,
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = pickupDropdownExpanded) },
+                        modifier = Modifier
+                            .fillMaxWidth(0.5f) // Ensures it occupies exactly 50% width
+                            .menuAnchor(),
+                        colors = TextFieldDefaults.outlinedTextFieldColors(
+                            unfocusedBorderColor = Color(0xFF1A73E8),
+                            focusedBorderColor = Color(0xFF3EDBF0)
                         )
+                    )
+                    ExposedDropdownMenu(
+                        expanded = pickupDropdownExpanded,
+                        onDismissRequest = { pickupDropdownExpanded = false }
+                    ) {
+                        pickupOptions.forEach { option ->
+                            DropdownMenuItem(
+                                text = { Text(option) },
+                                onClick = {
+                                    pickupLocation = option
+                                    dropOffLocation = "" // Reset dropOffLocation
+                                    pickupDropdownExpanded = false
+                                }
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.width(4.dp)) // Space between the two dropdowns
+
+                // Drop-Off Location Dropdown
+                ExposedDropdownMenuBox(
+                    expanded = dropOffDropdownExpanded,
+                    onExpandedChange = { dropOffDropdownExpanded = it && pickupLocation.isNotEmpty() }
+                ) {
+                    OutlinedTextField(
+                        value = dropOffLocation,
+                        onValueChange = { },
+                        label = { Text("Drop-Off") },
+                        readOnly = true,
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = dropOffDropdownExpanded) },
+                        modifier = Modifier
+                            .fillMaxWidth(1f) // Remaining 50% width (completes the row)
+                            .menuAnchor(),
+                        colors = TextFieldDefaults.outlinedTextFieldColors(
+                            unfocusedBorderColor = Color(0xFF1A73E8),
+                            focusedBorderColor = Color(0xFF3EDBF0)
+                        )
+                    )
+                    ExposedDropdownMenu(
+                        expanded = dropOffDropdownExpanded,
+                        onDismissRequest = { dropOffDropdownExpanded = false }
+                    ) {
+                        dropOffOptions.forEach { option ->
+                            DropdownMenuItem(
+                                text = { Text(option) },
+                                onClick = {
+                                    dropOffLocation = option
+                                    dropOffDropdownExpanded = false
+                                }
+                            )
+                        }
                     }
                 }
             }
+
 
             // Exact Pickup Location Autocomplete
             Spacer(modifier = Modifier.height(16.dp))
@@ -300,45 +340,6 @@ fun BookRideScreen(
                 }
             )
 
-
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // Drop-Off Location Dropdown
-            ExposedDropdownMenuBox(
-                expanded = dropOffDropdownExpanded,
-                onExpandedChange = { dropOffDropdownExpanded = it && pickupLocation.isNotEmpty() }
-            ) {
-                OutlinedTextField(
-                    value = dropOffLocation,
-                    onValueChange = { },
-                    label = { Text("Drop-Off Location") },
-                    readOnly = true,
-                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = dropOffDropdownExpanded) },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .menuAnchor(),
-                    colors = TextFieldDefaults.outlinedTextFieldColors(
-                        unfocusedBorderColor = Color(0xFF1A73E8),
-                        focusedBorderColor = Color(0xFF3EDBF0)
-                    )
-                )
-                ExposedDropdownMenu(
-                    expanded = dropOffDropdownExpanded,
-                    onDismissRequest = { dropOffDropdownExpanded = false }
-                ) {
-                    dropOffOptions.forEach { option ->
-                        DropdownMenuItem(
-                            text = { Text(option) },
-                            onClick = {
-                                dropOffLocation = option
-                                dropOffDropdownExpanded = false
-                            }
-                        )
-                    }
-                }
-            }
-
             // Exact Drop-Off Location Autocomplete
             Spacer(modifier = Modifier.height(16.dp))
 
@@ -355,48 +356,35 @@ fun BookRideScreen(
                 }
             )
 
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            PickupDatePicker(pickupDate) { selectedDate ->
-                pickupDate = selectedDate
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            PickupTimePicker(pickupTime) { selectedTime ->
-                pickupTime = selectedTime
-            }
-
             Spacer(modifier = Modifier.height(16.dp))
 
             Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp), // Padding for the entire row
+                horizontalArrangement = Arrangement.Start, // No extra spacing between components
+                verticalAlignment = Alignment.CenterVertically // Center align vertically
             ) {
-                Text("Number of Passengers")
-                Spacer(modifier = Modifier.width(8.dp))
-                OutlinedTextField(
-                    value = numberOfPassengers,
-                    onValueChange = {
-                        if (it.isEmpty() || (it.toIntOrNull() ?: 0) in 1..8) {
-                            numberOfPassengers = it
-                        }
-                    },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    modifier = Modifier.width(60.dp)
-                )
-            }
-
-            CheckboxRow(label = "Open to Sharing", value = openToSharing) {
-                openToSharing = it
-            }
-
-            CheckboxRow(label = "Okay to Split Group", value = okToSplitGroup) {
-                okToSplitGroup = it
+                // Date Picker with 60% width
+                Box(
+                    modifier = Modifier
+                        .weight(1f) // Allocate 60% of the row's width
+                ) {
+                    SpinnerDatePicker(
+                        initialDay = currentDateTime.dayOfMonth,
+                        initialMonth = currentDateTime.monthValue - 1,
+                        initialYear = currentDateTime.year,
+                        initialHour = currentDateTime.hour,
+                        initialMinute = currentDateTime.minute
+                    ) { day, month, year,hour,minute ->
+                        pickupDate = String.format("%02d-%02d-%04d", day, month + 1, year)
+                        pickupTime = String.format("%02d:%02d", hour, minute)
+                    }
+                }
             }
 
             Spacer(modifier = Modifier.height(16.dp))
+
 
             Box(
                 modifier = Modifier
@@ -424,7 +412,7 @@ fun BookRideScreen(
                     modifier = Modifier.fillMaxWidth(),
                     enabled = pickupLocation.isNotEmpty() && dropOffLocation.isNotEmpty()
                 ) {
-                    Text("Submit Ride Request")
+                    Text("Book A Ride")
                 }
             }
         }
@@ -697,6 +685,180 @@ fun DropOffLocationField(
         }
     }
 }
+
+
+@Composable
+fun WheelPicker(
+    items: List<String>,
+    selectedIndex: Int,
+    onItemSelected: (Int) -> Unit,
+    colWidth: Int,
+) {
+    // LazyListState to control the scrolling position
+    val listState = rememberLazyListState()
+
+    // Side-effect to scroll to the selected index when the composable is first displayed
+    LaunchedEffect(selectedIndex) {
+        listState.scrollToItem(selectedIndex)
+    }
+
+    LazyColumn(
+        state = listState, // Attach the state
+        modifier = Modifier
+            .width(colWidth.dp) // Set a fixed width for better alignment
+            .height(80.dp), // Adjusted height for better usability
+        verticalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        itemsIndexed(items) { index, item ->
+            val isSelected = index == selectedIndex
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(6.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                if (isSelected) {
+                    // Draw a circular background around the selected text
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp) // Adjust the size of the circle
+                            .background(Color.White, shape = CircleShape)
+                    )
+                }
+                Text(
+                    text = item,
+                    style = MaterialTheme.typography.bodySmall.copy(
+                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                        color = if (isSelected) Color.Black else Color.Gray
+                    ),
+                    modifier = Modifier
+                        .clickable { onItemSelected(index) }, // Handle click to select the item
+                    textAlign = TextAlign.Center
+                )
+            }
+        }
+    }
+}
+
+
+@Composable
+fun SpinnerDatePicker(
+    initialDay: Int = 1,
+    initialMonth: Int = 0, // 0 for January
+    initialYear: Int = 2023,
+    initialHour: Int = 12,
+    initialMinute: Int = 30,
+    onDateSelected: (Int, Int, Int, Int, Int) -> Unit
+) {
+    val days = (1..31).toList()
+    val months = listOf("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
+    val years = (1900..2100).toList()
+    val hours = (1..24).map { String.format("%02d", it) }.toList()
+    val minutes = (0..59).map { String.format("%02d", it) }.toList()
+
+    var selectedDay by remember { mutableStateOf(initialDay) }
+    var selectedMonth by remember { mutableStateOf(initialMonth) }
+    var selectedYear by remember { mutableStateOf(initialYear) }
+    var selectedHour by remember { mutableStateOf(initialHour) }
+    var selectedMinute by remember { mutableStateOf(initialMinute) }
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(Color(0xFFE0FFFF), shape = RoundedCornerShape(16.dp)) // Cream background
+            .padding(12.dp)
+    ) {
+        Row(
+            horizontalArrangement = Arrangement.SpaceEvenly,
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            // Day Picker
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text("Day", color = Color.Black, style = MaterialTheme.typography.bodySmall)
+                WheelPicker(
+                    items = days.map { it.toString() },
+                    selectedIndex = days.indexOf(selectedDay),
+                    onItemSelected = {
+                        selectedDay = days[it]
+                        onDateSelected(selectedDay, selectedMonth, selectedYear, selectedHour, selectedMinute)
+                    },
+                    colWidth = 40
+                )
+            }
+
+            // Month Picker
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text("Month", color = Color.Black, style = MaterialTheme.typography.bodySmall)
+                WheelPicker(
+                    items = months,
+                    selectedIndex = selectedMonth,
+                    onItemSelected = {
+                        selectedMonth = it
+                        onDateSelected(selectedDay, selectedMonth, selectedYear, selectedHour, selectedMinute)
+                    },
+                    colWidth = 60
+                )
+            }
+
+            // Year Picker
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text("Year", color = Color.Black, style = MaterialTheme.typography.bodySmall)
+                WheelPicker(
+                    items = years.map { it.toString() },
+                    selectedIndex = years.indexOf(selectedYear),
+                    onItemSelected = {
+                        selectedYear = years[it]
+                        onDateSelected(selectedDay, selectedMonth, selectedYear, selectedHour, selectedMinute)
+                    },
+                    colWidth = 80
+                )
+            }
+
+            // Hour Picker
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text("Hour", color = Color.Black, style = MaterialTheme.typography.bodySmall)
+                WheelPicker(
+                    items = hours,
+                    selectedIndex = hours.indexOf(selectedHour.toString().padStart(2, '0')),
+                    onItemSelected = {
+                        selectedHour = hours[it].toInt()
+                        onDateSelected(selectedDay, selectedMonth, selectedYear, selectedHour, selectedMinute)
+                    },
+                    colWidth = 60
+                )
+            }
+
+            // Minute Picker
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text("Minute", color = Color.Black, style = MaterialTheme.typography.bodySmall)
+                WheelPicker(
+                    items = minutes,
+                    selectedIndex = minutes.indexOf(selectedMinute.toString().padStart(2, '0')),
+                    onItemSelected = {
+                        selectedMinute = minutes[it].toInt()
+                        onDateSelected(selectedDay, selectedMonth, selectedYear, selectedHour, selectedMinute)
+                    },
+                    colWidth = 60
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(8.dp)) // Add spacing between rows
+    }
+}
+
+
 
 
 

@@ -254,7 +254,7 @@ fun DashboardScreen(name: String, onLogout: () -> Unit, onShowAllRides: () -> Un
             Snackbar(
                 action = {
                     TextButton(onClick = { notificationMessage = null }) {
-                        Text("Dismiss", color = Color(0xFF232323))
+                        Text("Ok", color = Color(0xFF232323))
                     }
                 },
                 modifier = Modifier.padding(16.dp),

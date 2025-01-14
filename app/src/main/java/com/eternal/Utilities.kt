@@ -35,7 +35,9 @@ fun validateInputs(
 }
 
 fun sendOtp(activity: MainActivity, phoneNumber: String, onVerificationIdReceived: (String) -> Unit) {
+
     val auth = FirebaseAuth.getInstance()
+
     val options = PhoneAuthOptions.newBuilder(auth)
         .setPhoneNumber(phoneNumber)
         .setTimeout(60L, TimeUnit.SECONDS)

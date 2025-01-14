@@ -94,7 +94,7 @@ fun PhoneNumberSignUpScreen(
             // App logo
 
             Image(
-                painter = painterResource(id = R.drawable.ic_launcher_round), // Replace with your rounded logo resource
+                painter = painterResource(id = R.drawable.ic_launcher_round),
                 contentDescription = "RideShare Logo",
                 modifier = Modifier
                     .size(100.dp) // Adjust the size as needed
