@@ -48,11 +48,13 @@ fun sendOtp(activity: MainActivity, phoneNumber: String, onVerificationIdReceive
             }
 
             override fun onVerificationFailed(exception: FirebaseException) {
+                println("Verification failed: ${exception.message}")
                 Toast.makeText(activity, "Verification failed: ${exception.message}", Toast.LENGTH_SHORT).show()
             }
 
             override fun onCodeSent(verificationId: String, token: PhoneAuthProvider.ForceResendingToken) {
                 onVerificationIdReceived(verificationId)
+                println("OTP Sent!")
                 Toast.makeText(activity, "OTP Sent!", Toast.LENGTH_SHORT).show()
             }
         }).build()

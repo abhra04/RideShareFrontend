@@ -6,6 +6,7 @@ import android.app.DatePickerDialog
 import android.app.TimePickerDialog
 import android.content.pm.PackageManager
 import android.os.Build
+import android.util.Log
 import android.widget.Toast
 import androidx.annotation.RequiresApi
 import androidx.compose.animation.core.Animatable
@@ -55,12 +56,14 @@ import com.google.firebase.auth.FirebaseAuth
 import com.google.maps.android.compose.GoogleMap
 import com.google.maps.android.compose.MapProperties
 import com.google.maps.android.compose.Marker
+import com.google.maps.android.compose.MarkerState
 import com.google.maps.android.compose.rememberCameraPositionState
 import com.google.maps.android.compose.rememberMarkerState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import org.json.JSONObject
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
@@ -109,6 +112,8 @@ fun BookRideScreen(
         else -> emptyList()
     }
     var currentDateTime = LocalDateTime.now()
+    var exactPickupMarkerState = rememberMarkerState(position = exactPickupLocation)
+    var dropOffMarkerState = rememberMarkerState(position = pinDropOffLocation)
 
 
 
@@ -168,36 +173,32 @@ fun BookRideScreen(
                 },
                 properties = MapProperties(mapStyleOptions = MapStyleOptions(mapStyle.trimIndent()))
             ) {
-                // Exact Pickup Location Marker
-                val exactPickupMarkerState = rememberMarkerState(position = exactPickupLocation)
                 Marker(
                     state = exactPickupMarkerState,
                     title = "Exact Pickup Location",
-                    draggable = true // Enables dragging
+                    draggable = true,
                 )
                 LaunchedEffect(exactPickupMarkerState.position) {
                     exactPickupLocation = exactPickupMarkerState.position
+                    val apiKey = "AIzaSyBcGEnvmXH8Aztnq5Kjx2vfz3XmWwPgfsA"
+                    val address = reverseGeocode(exactPickupMarkerState.position, apiKey)
+                    exactPickupLocationBox = address
+                    exactPickupMarkerState.position = exactPickupLocation
                 }
 
-                // Drop Off Location Marker
-                val dropOffMarkerState = rememberMarkerState(position = pinDropOffLocation)
+                // Drop Off Marker
                 Marker(
                     state = dropOffMarkerState,
                     title = "Drop Off Location",
                     icon = BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_GREEN),
-                    draggable = true // Enables dragging
+                    draggable = true
                 )
                 LaunchedEffect(dropOffMarkerState.position) {
                     pinDropOffLocation = dropOffMarkerState.position
-                }
-
-                // Your Location Marker
-                if (userLocation.latitude != 0.0) {
-                    Marker(
-                        state = rememberMarkerState(position = userLocation),
-                        title = "Your Location",
-                        icon = BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_AZURE)
-                    )
+                    val apiKey = "AIzaSyBcGEnvmXH8Aztnq5Kjx2vfz3XmWwPgfsA"
+                    val address = reverseGeocode(dropOffMarkerState.position, apiKey)
+                    exactDropoffLocation = address
+                    dropOffMarkerState.position = pinDropOffLocation
                 }
             }
         }
@@ -313,7 +314,13 @@ fun BookRideScreen(
 
             LaunchedEffect(exactDropoffLocation) {
                 if (exactDropoffLocation.isNotBlank()) {
-                    dropOffSuggestions = fetchSuggestions(exactDropoffLocation) // Call the suspend function
+                    // Fetch suggestions based on the input
+                    dropOffSuggestions = fetchSuggestions(exactDropoffLocation)
+                    val apiKey = "AIzaSyBcGEnvmXH8Aztnq5Kjx2vfz3XmWwPgfsA"
+                    val coordinates = geocode(exactDropoffLocation, apiKey)
+                    pinDropOffLocation = LatLng(coordinates.first, coordinates.second)
+                    dropOffMarkerState = MarkerState(position = pinDropOffLocation)
+
                 } else {
                     dropOffSuggestions = emptyList()
                 }
@@ -321,7 +328,12 @@ fun BookRideScreen(
 
             LaunchedEffect(exactPickupLocationBox) {
                 if (exactPickupLocationBox.isNotBlank()) {
-                    pickupSuggestions = fetchSuggestions(exactPickupLocationBox) // Call the suspend function
+                    // Fetch suggestions based on the input
+                    pickupSuggestions = fetchSuggestions(exactPickupLocationBox)
+                    val apiKey = "AIzaSyBcGEnvmXH8Aztnq5Kjx2vfz3XmWwPgfsA"
+                    val coordinates = geocode(exactPickupLocationBox, apiKey)
+                    exactPickupLocation = LatLng(coordinates.first, coordinates.second)
+                    exactPickupMarkerState = MarkerState(position = exactPickupLocation)
                 } else {
                     pickupSuggestions = emptyList()
                 }
@@ -354,6 +366,7 @@ fun BookRideScreen(
                 dropOffSuggestions = dropOffSuggestions,
                 onSuggestionClick = { suggestion ->
                     exactDropoffLocation = suggestion
+                    val apiKey = "AIzaSyBcGEnvmXH8Aztnq5Kjx2vfz3XmWwPgfsA"
                 }
             )
 
@@ -770,9 +783,78 @@ fun SpinnerDatePicker(
 }
 
 
+suspend fun reverseGeocode(position: LatLng, apiKey: String): String {
+    val url = "https://maps.googleapis.com/maps/api/geocode/json?latlng=${position.latitude},${position.longitude}&key=$apiKey"
+    val client = OkHttpClient()
+    val request = Request.Builder().url(url).build()
+
+    // Perform the network request in the background
+    return withContext(Dispatchers.IO) {
+        try {
+            val response = client.newCall(request).execute()
+            if (response.isSuccessful) {
+                val responseBody = response.body()?.string()
+                if (responseBody != null) {
+                    // Parse the response to extract the formatted address
+                    val json = JSONObject(responseBody)
+                    val results = json.optJSONArray("results")
+                    if (results != null && results.length() > 0) {
+                        val firstResult = results.getJSONObject(0)
+                        return@withContext firstResult.optString("formatted_address", "Unknown Location")
+                    }
+                }
+            }
+            "Unknown Location" // Default fallback if response or parsing fails
+        } catch (e: Exception) {
+            e.printStackTrace()
+            "Error: Unable to fetch location"
+        }
+    }
+}
+
+suspend fun geocode(address: String, apiKey: String): Pair<Double, Double> {
+    val url = "https://maps.googleapis.com/maps/api/geocode/json?address=${address.replace(" ", "+")}&key=$apiKey"
+    val client = OkHttpClient()
+    val request = Request.Builder().url(url).build()
+
+    return withContext(Dispatchers.IO) {
+        try {
+            val response = client.newCall(request).execute()
+            if (response.isSuccessful) {
+                val responseBody = response.body()?.string()
+                if (!responseBody.isNullOrEmpty()) {
+                    return@withContext parseGeocodeResponse(responseBody)
+                }
+            }
+            Pair(0.0, 0.0) // Default fallback if response or parsing fails
+        } catch (e: Exception) {
+            e.printStackTrace()
+            Pair(0.0, 0.0) // Error fallback
+        }
+    }
+}
+
+
+fun parseGeocodeResponse(json: String): Pair<Double, Double> {
+    println("going to parse")
+    val regexLat = """"lat" : ([0-9.-]+)""".toRegex()
+    val regexLng = """"lng" : ([0-9.-]+)""".toRegex()
+
+    // Find latitude and longitude inside the geometry.location object
+    val latMatch = regexLat.find(json)
+    val lngMatch = regexLng.find(json)
+    // Extract latitude and longitude from the matched regex groups, or use 0.0 as fallback
+    val lat = latMatch?.groupValues?.get(1)?.toDoubleOrNull() ?: 0.0
+    val lng = lngMatch?.groupValues?.get(1)?.toDoubleOrNull() ?: 0.0
+    println(lat)
+    println(lng)
+    return Pair(lat, lng)
+}
 
 
 
 //fun main(){
-//    println(fetchLocationSuggestions("kol"))
+//    println(geocode_1("Khargapur Railway Station","AIzaSyBcGEnvmXH8Aztnq5Kjx2vfz3XmWwPgfsA"))
+////    println(reverseGeocode_1(19.11112f,20.123f,"AIzaSyBcGEnvmXH8Aztnq5Kjx2vfz3XmWwPgfsA"))
 //}
+
