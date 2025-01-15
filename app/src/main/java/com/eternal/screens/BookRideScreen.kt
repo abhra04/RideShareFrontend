@@ -2,19 +2,17 @@ package com.eternal.screens
 
 
 import android.Manifest
-import android.app.DatePickerDialog
-import android.app.TimePickerDialog
+import android.annotation.SuppressLint
+import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
-import android.util.Log
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.RequiresApi
-import androidx.compose.animation.core.Animatable
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
-import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -22,37 +20,35 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AccessTime
 import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import com.eternal.mapStyle
 import com.eternal.models.RideRequest
+import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.LocationServices
+import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.model.BitmapDescriptorFactory
 import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.LatLng
+import com.google.android.gms.maps.model.LatLngBounds
 import com.google.android.gms.maps.model.MapStyleOptions
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.auth.FirebaseUser
 import com.google.maps.android.compose.GoogleMap
 import com.google.maps.android.compose.MapProperties
 import com.google.maps.android.compose.Marker
@@ -64,12 +60,7 @@ import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONObject
-import java.time.LocalDate
 import java.time.LocalDateTime
-import java.time.LocalTime
-import java.time.format.DateTimeFormatter
-import java.util.*
-
 
 
 @RequiresApi(Build.VERSION_CODES.O)
@@ -114,34 +105,61 @@ fun BookRideScreen(
     var currentDateTime = LocalDateTime.now()
     var exactPickupMarkerState = rememberMarkerState(position = exactPickupLocation)
     var dropOffMarkerState = rememberMarkerState(position = pinDropOffLocation)
+    var lastKnownPosition by remember { mutableStateOf(exactPickupLocation) }
+    var lastKnownDropOffPosition by remember { mutableStateOf(pinDropOffLocation) }
 
 
-
-    LaunchedEffect(currentUser) {
-        contactNumber = currentUser?.phoneNumber ?: ""
-        currentDateTime = LocalDateTime.now()
-        if (ContextCompat.checkSelfPermission(
-                context,
-                Manifest.permission.ACCESS_FINE_LOCATION
-            ) == PackageManager.PERMISSION_GRANTED
-        ) {
-            fusedLocationClient.getCurrentLocation(
-                com.google.android.gms.location.Priority.PRIORITY_HIGH_ACCURACY,
-                null
-            ).addOnSuccessListener { location ->
-                if (location != null) {
-                    exactPickupLocation = LatLng(location.latitude, location.longitude)
-                } else {
-                    Toast.makeText(context, "Unable to fetch current location.", Toast.LENGTH_SHORT).show()
-                }
-            }.addOnFailureListener {
-                Toast.makeText(context, "Failed to get location: ${it.message}", Toast.LENGTH_SHORT).show()
-            }
-        } else {
-            Toast.makeText(context, "Location permission not granted.", Toast.LENGTH_LONG).show()
-        }
-
+    fun LatLng.toBounds(other: LatLng): LatLngBounds {
+        val builder = LatLngBounds.Builder()
+        builder.include(this)
+        builder.include(other)
+        return builder.build()
     }
+
+    fun LatLngBounds.getZoomLevel(): Float {
+        val width = northeast.longitude - southwest.longitude + 0.0422
+        val height = northeast.latitude - southwest.latitude + 0.0422
+        val maxSpan = maxOf(width, height)
+
+        // Adjust these values to control min/max zoom
+        return when {
+            maxSpan > 0.5 -> 10f  // Far apart markers
+            maxSpan > 0.1 -> 12f  // Medium distance
+            maxSpan > 0.05 -> 14f // Closer
+            else -> 16f           // Very close
+        }
+    }
+
+// In your composable, add this state
+    val cameraPositionState = rememberCameraPositionState()
+
+// Add this effect to update camera when markers change
+    LaunchedEffect(exactPickupLocation, pinDropOffLocation) {
+        val bounds = exactPickupLocation.toBounds(pinDropOffLocation)
+        val zoom = bounds.getZoomLevel()
+
+        // Center point between two markers
+        val center = LatLng(
+            (exactPickupLocation.latitude + pinDropOffLocation.latitude) / 2,
+            (exactPickupLocation.longitude + pinDropOffLocation.longitude) / 2
+        )
+
+        cameraPositionState.animate(
+            update = CameraUpdateFactory.newLatLngZoom(center, zoom),
+            durationMs = 1000
+        )
+    }
+
+
+    RequestLocationPermission(
+        currentUser = currentUser,
+        fusedLocationClient = fusedLocationClient,
+        context = context,
+        onLocationUpdate = { newLocation ->
+            exactPickupLocation = newLocation
+        }
+    )
+
 
     Scaffold(
         bottomBar = {
@@ -166,24 +184,42 @@ fun BookRideScreen(
         ) {
             GoogleMap(
                 modifier = Modifier.fillMaxSize(),
-                cameraPositionState = rememberCameraPositionState {
-                    position = CameraPosition.fromLatLngZoom(
-                        userLocation.takeIf { it.latitude != 0.0 } ?: exactPickupLocation, 16f // Closer zoom level
-                    )
-                },
+                cameraPositionState = cameraPositionState,
                 properties = MapProperties(mapStyleOptions = MapStyleOptions(mapStyle.trimIndent()))
             ) {
                 Marker(
                     state = exactPickupMarkerState,
                     title = "Exact Pickup Location",
-                    draggable = true,
+                    draggable = true
                 )
+
                 LaunchedEffect(exactPickupMarkerState.position) {
-                    exactPickupLocation = exactPickupMarkerState.position
-                    val apiKey = "AIzaSyBcGEnvmXH8Aztnq5Kjx2vfz3XmWwPgfsA"
-                    val address = reverseGeocode(exactPickupMarkerState.position, apiKey)
-                    exactPickupLocationBox = address
-                    exactPickupMarkerState.position = exactPickupLocation
+
+                    if (exactPickupMarkerState.position != lastKnownPosition) {
+                        exactPickupLocation = exactPickupMarkerState.position
+                        lastKnownPosition = exactPickupMarkerState.position
+                        val apiKey = "AIzaSyBcGEnvmXH8Aztnq5Kjx2vfz3XmWwPgfsA"
+                        val address = reverseGeocode(exactPickupMarkerState.position, apiKey)
+                        exactPickupLocationBox = address
+                    }
+                }
+
+                LaunchedEffect(exactPickupLocation) {
+                    if (exactPickupLocation != exactPickupMarkerState.position) {
+                        lastKnownPosition = exactPickupLocation
+                        exactPickupMarkerState.position = exactPickupLocation
+                    }
+                }
+
+                LaunchedEffect(exactPickupLocationBox) {
+                    if (exactPickupLocationBox.isNotBlank()) {
+                        pickupSuggestions = fetchSuggestions(exactPickupLocationBox)
+                        val apiKey = "AIzaSyBcGEnvmXH8Aztnq5Kjx2vfz3XmWwPgfsA"
+                        val coordinates = geocode(exactPickupLocationBox, apiKey)
+                        exactPickupLocation = LatLng(coordinates.first, coordinates.second)
+                    } else {
+                        pickupSuggestions = emptyList()
+                    }
                 }
 
                 // Drop Off Marker
@@ -193,12 +229,21 @@ fun BookRideScreen(
                     icon = BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_GREEN),
                     draggable = true
                 )
+
                 LaunchedEffect(dropOffMarkerState.position) {
-                    pinDropOffLocation = dropOffMarkerState.position
-                    val apiKey = "AIzaSyBcGEnvmXH8Aztnq5Kjx2vfz3XmWwPgfsA"
-                    val address = reverseGeocode(dropOffMarkerState.position, apiKey)
-                    exactDropoffLocation = address
-                    dropOffMarkerState.position = pinDropOffLocation
+                    if (dropOffMarkerState.position != lastKnownDropOffPosition) {
+                        pinDropOffLocation = dropOffMarkerState.position
+                        lastKnownDropOffPosition = dropOffMarkerState.position
+                        val apiKey = "AIzaSyBcGEnvmXH8Aztnq5Kjx2vfz3XmWwPgfsA"
+                        val address = reverseGeocode(dropOffMarkerState.position, apiKey)
+                        exactDropoffLocation = address
+                    }
+                }
+                LaunchedEffect(pinDropOffLocation) {
+                    if (pinDropOffLocation != dropOffMarkerState.position) {
+                        lastKnownDropOffPosition = pinDropOffLocation
+                        dropOffMarkerState.position = pinDropOffLocation
+                    }
                 }
             }
         }
@@ -212,7 +257,8 @@ fun BookRideScreen(
                 .background(Color(0xFF1A73E8))
                 .pointerInput(Unit) {
                     detectDragGestures { _, dragAmount ->
-                        mapHeightFraction = (mapHeightFraction + dragAmount.y / boxHeight).coerceIn(0.2f, 0.8f)
+                        mapHeightFraction =
+                            (mapHeightFraction + dragAmount.y / boxHeight).coerceIn(0.2f, 0.8f)
                     }
                 }
         )
@@ -225,7 +271,10 @@ fun BookRideScreen(
                 .align(Alignment.BottomStart)
                 .padding(16.dp)
                 .verticalScroll(rememberScrollState())
-                .background(Color.White, shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp))
+                .background(
+                    Color.White,
+                    shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp)
+                )
         ) {
 
             Row(
@@ -851,6 +900,70 @@ fun parseGeocodeResponse(json: String): Pair<Double, Double> {
     return Pair(lat, lng)
 }
 
+
+@RequiresApi(Build.VERSION_CODES.O)
+@Composable
+fun RequestLocationPermission(
+    @SuppressLint("RestrictedApi") currentUser: FirebaseUser?,
+    fusedLocationClient: FusedLocationProviderClient,
+    context: Context,
+    onLocationUpdate: (LatLng) -> Unit  // Added callback to update location
+) {
+    var contactNumber by remember { mutableStateOf("") }
+    var currentDateTime by remember { mutableStateOf(LocalDateTime.now()) }
+
+    // Remember the launcher for requesting location permissions
+    val permissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            // Permission granted, fetch the location
+            fusedLocationClient.getCurrentLocation(
+                com.google.android.gms.location.Priority.PRIORITY_HIGH_ACCURACY,
+                null
+            ).addOnSuccessListener { location ->
+                if (location != null) {
+                    onLocationUpdate(LatLng(location.latitude, location.longitude))
+                } else {
+                    Toast.makeText(context, "Unable to fetch current location.", Toast.LENGTH_SHORT).show()
+                }
+            }.addOnFailureListener {
+                Toast.makeText(context, "Failed to get location: ${it.message}", Toast.LENGTH_SHORT).show()
+            }
+        } else {
+            Toast.makeText(context, "Location permission not granted.", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    LaunchedEffect(currentUser) {
+        contactNumber = currentUser?.phoneNumber ?: ""
+        currentDateTime = LocalDateTime.now()
+
+        // Check if permission is granted
+        if (ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.ACCESS_FINE_LOCATION
+            ) == PackageManager.PERMISSION_GRANTED
+        ) {
+            // Permission already granted, fetch location
+            fusedLocationClient.getCurrentLocation(
+                com.google.android.gms.location.Priority.PRIORITY_HIGH_ACCURACY,
+                null
+            ).addOnSuccessListener { location ->
+                if (location != null) {
+                    onLocationUpdate(LatLng(location.latitude, location.longitude))
+                } else {
+                    Toast.makeText(context, "Unable to fetch current location.", Toast.LENGTH_SHORT).show()
+                }
+            }.addOnFailureListener {
+                Toast.makeText(context, "Failed to get location: ${it.message}", Toast.LENGTH_SHORT).show()
+            }
+        } else {
+            // Launch permission request
+            permissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
+        }
+    }
+}
 
 
 //fun main(){
