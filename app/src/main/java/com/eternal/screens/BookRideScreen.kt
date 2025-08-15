@@ -24,6 +24,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -56,6 +57,7 @@ import com.google.maps.android.compose.MarkerState
 import com.google.maps.android.compose.rememberCameraPositionState
 import com.google.maps.android.compose.rememberMarkerState
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -71,6 +73,7 @@ fun BookRideScreen(
     onDismiss: () -> Unit,
     onClick: () -> Unit
 ) {
+    val coroutineScope = rememberCoroutineScope()
     var mapHeightFraction by remember { mutableStateOf(0.33f) } // Start with 1/3rd for the map
     var boxHeight by remember { mutableStateOf(0) } // Total box height
     var exactPickupLocation by remember { mutableStateOf(LatLng(22.314871, 87.286537)) }
@@ -156,6 +159,7 @@ fun BookRideScreen(
         fusedLocationClient = fusedLocationClient,
         context = context,
         onLocationUpdate = { newLocation ->
+            userLocation = newLocation
             exactPickupLocation = newLocation
         }
     )
@@ -185,7 +189,7 @@ fun BookRideScreen(
             GoogleMap(
                 modifier = Modifier.fillMaxSize(),
                 cameraPositionState = cameraPositionState,
-                properties = MapProperties(mapStyleOptions = MapStyleOptions(mapStyle.trimIndent()))
+                properties = MapProperties(isTrafficEnabled = true, mapStyleOptions = MapStyleOptions(mapStyle.trimIndent()))
             ) {
                 Marker(
                     state = exactPickupMarkerState,
@@ -245,6 +249,25 @@ fun BookRideScreen(
                         dropOffMarkerState.position = pinDropOffLocation
                     }
                 }
+            }
+            FloatingActionButton(
+                onClick = {
+                    coroutineScope.launch {
+                        cameraPositionState.animate(
+                            update = CameraUpdateFactory.newLatLngZoom(userLocation, 15f),
+                            durationMs = 1000
+                        )
+                    }
+                },
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(16.dp),
+                shape = CircleShape
+            ) {
+                Icon(
+                    imageVector = Icons.Default.MyLocation,
+                    contentDescription = "My Location"
+                )
             }
         }
 
